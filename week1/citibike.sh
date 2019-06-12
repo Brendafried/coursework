@@ -4,7 +4,7 @@
 #
 
 # count the number of unique stations
-cut -d, -f5,9 201402-citibike-tripdata.csv | sort | uniq | wc -l
+cut -d, -f5,9 201402-citibike-tripdata.csv | tr , '\n' | sort | uniq | wc -l
 # count the number of unique bikes
 cut -d, -f12 201402-citibike-tripdata.csv | sort | uniq | wc -l
 # count the number of trips per day
