@@ -138,5 +138,59 @@ ratings %>%
 # paper, produce one curve for the 100% user satisfaction level and
 # another for 90%---do not, however, bother implementing the null
 # model (shown in the dashed lines).
+users_rated_at_least_10 <- ratings %>%
+  group_by(user_id) %>%
+  filter(n() >= 10) %>%
+  ungroup()
+
+movies_by_rank <- ratings %>%
+  group_by(movie_id) %>%
+  summarize(num_ratings = n()) %>%
+  arrange(desc(num_ratings)) %>% 
+  mutate(rank = rank(desc(num_ratings)))
+
+joined <- inner_join(users_rated_at_least_10, movies_by_rank)
+
+#lowest rank means rank is a high number
+lowest_rank_per_user_100 <- joined %>%
+  group_by(user_id) %>%
+  summarize(rank_100 = max(rank))
+
+# the movie percentage rating then filtered to get the movie closest to 90%
+percentage_90 <- joined %>%
+  group_by(user_id) %>%
+  mutate(percentile = percent_rank(rank)) %>% 
+  filter(percentile >= .9) %>% 
+  summarize(rank_90 = min(rank))
+
+ranks_90_100 <- inner_join(lowest_rank_per_user_100, percentage_90)
+
+# get the number of users
+num_users <- users_rated_at_least_10 %>% select(user_id) %>% unique() %>% count()
+
+
+rank_100_data <- ranks_90_100 %>%
+  arrange(rank_100) %>% 
+  mutate(row_num = row_number()) %>% 
+  group_by(rank_100) %>%
+  summarize(num_users_happy = max(row_num)/ num_users$n)
+
+
+rank_90_data <- ranks_90_100 %>%
+  arrange(rank_90) %>%
+  mutate(row_num = row_number()) %>%
+  group_by(rank_90) %>%
+  summarize(num_users_90_pct_happy = max(row_num)/num_users$n )
+
+rank_100_data %>%
+  ggplot() +
+  geom_line(aes(x = rank_100, y = num_users_happy)) +
+  geom_line(data = rank_90_data, aes(x = rank_90, y = num_users_90_pct_happy)) +
+  scale_y_continuous(label = percent) +
+  ylab('Percentage of Users Satisfied') +
+  xlab('Inventory Size')
+  
+
+
 
 ```
