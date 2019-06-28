@@ -187,10 +187,7 @@ rank_100_data %>%
   geom_line(aes(x = rank_100, y = num_users_happy)) +
   geom_line(data = rank_90_data, aes(x = rank_90, y = num_users_90_pct_happy)) +
   scale_y_continuous(label = percent) +
-  ylab('Percentage of Users Satisfied') +
-  xlab('Inventory Size')
+  labs(x = 'Percentage of Users Satisfied', y = 'Inventory Size', title = 'The Anatomy of the Long Tail')
   
-
-
 
 ```
