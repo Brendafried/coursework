@@ -3,6 +3,7 @@
 *~
 *.zip
 .ipynb_checkpoints
+<<<<<<< HEAD
 *.csv
 *.tsv
 *.dat
@@ -14,3 +15,7 @@ week2/ngrams/googlebooks-eng-all-1gram-20120701-1
 week2/ngrams/googlebooks-eng-all-totalcounts-20120701.txt
 week2/ngrams/ngram.png
 "week2/ngrams/total_counts.csv\r"
+*.gz
+*.csv
+*.tsv
+
