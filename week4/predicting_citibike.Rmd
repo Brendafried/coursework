@@ -1,0 +1,112 @@
+---
+title: "predicting_citibike"
+author: "Brenda Fried"
+date: "7/2/2019"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(broom)
+library(modelr)
+```
+## Load Data 
+```{r load-split-data}
+trips_per_day <- read_tsv('trips_per_day.tsv')
+
+holidays <- read_csv('https://gist.githubusercontent.com/shivaas/4758439/raw/b0d3ddec380af69930d0d67a9e0519c047047ff8/US%2520Bank%2520holidays', col_names=c('n', 'date', 'holiday'))
+
+trips <- left_join(trips_per_day, holidays, by = c("ymd" = "date"))
+
+trips <- trips %>% 
+    mutate(isholiday = (!(is.na(holiday))), wday = wday(ymd)) %>%
+    mutate(isweekend = (wday == 1) | (wday == 7) ) 
+    #dplyr::select(date, num_trips, prcp, snwd, snow, tmax, tmin, isholiday, isweekend) 
+
+```
+## Check Correlations 
+Now that the data is split 
+Let's look at different correlations to see what would have an effect
+the number of trips
+```{r cor}
+trips %>%
+  ggplot() +
+  geom_point(aes(x = prcp, y = num_trips))
+
+trips %>%
+  ggplot() +
+  geom_point(aes(x = tmax, y = num_trips))
+
+trips %>%
+  ggplot() +
+  geom_point(aes(x = isholiday, y = num_trips))
+#less trips when there was a holiday but more variation
+
+trips %>%
+  ggplot() +
+  geom_point(aes(x = isweekend, y = num_trips))
+#less trips on the weekend
+
+trips %>%
+  ggplot() +
+  geom_line(aes(x = snow, y = num_trips))
+```
+
+```{r}
+#shuffle data set and add a column for fold
+shuffled <- sample_frac(trips, 1, replace = F) %>%
+  mutate(fold = (row_number()%% 5) + 1)
+
+K <- 1:5
+
+#initialize vectors
+t_mse <- c()
+v_mse <- c()
+t_rsquare <- c()
+v_rsquare <- c()
+
+for (k in K) {
+  training_data <- shuffled %>% filter(fold != k)
+  validation_data <- shuffled %>% filter(fold == k)
+  model <- lm(num_trips ~ tmin + prcp + isweekend + isholiday + prcp:isholiday, training_data)
+  t_mse[k] <- rmse(model, training_data)
+  v_mse[k] <- rmse(model, validation_data)
+  t_rsquare[k] <- rsquare(model, training_data)
+  v_rsquare[k] <- rsquare(model, validation_data)
+}
+
+#average mse and r^2 for training and validation data
+mean_rmse_training <- mean(t_mse)
+mean_rmse_validation <- mean(v_mse)
+mean_rsquare_training <- mean(t_rsquare)
+mean_rsquare_validation <- mean(v_rsquare)
+t_se <- sd(t_mse)/sqrt(292)
+v_se <- sd(v_mse)/sqrt(73)
+
+
+```
+## Add my best model
+```{r}
+# add predictions to my best model
+validation_data <- add_predictions(validation_data, model, var = "pred")
+```
+
+# Test the model against the validation set
+```{r}
+ggplot() +
+  geom_point(data = validation_data, aes(x = date, y = num_trips)) +
+  geom_line(data = validation_data, aes(x = date, y = pred))
+```
+#Check actual vs. pred
+```{r}
+ggplot() +
+  geom_point(data = validation_data, aes(x = pred, y = num_trips)) +
+  geom_abline(slope = 1, intercept = 0)
+```
+
+```{r}
+save(model, file = "bestModel.RData")
+```
+
