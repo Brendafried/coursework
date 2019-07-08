@@ -1,0 +1,165 @@
+---
+title: "Citibike modeling"
+author: "Brenda Fried"
+date: '`r Sys.time()`'
+
+
+---
+
+```{r setup, include=FALSE}
+library(scales)
+library(tidyverse)
+library(modelr)
+library(knitr)
+
+# set plot theme
+theme_set(theme_bw())
+```
+#Load data
+
+```{r load-data}
+trips_per_day <- read_tsv('trips_per_day.tsv')
+
+```
+
+#shuffle the data, split into training and validation sets
+
+```{r split-sets}
+
+trips <- trips_per_day %>% nrow()
+shuffled <- sample_frac(trips_per_day, 1, replace = F)
+
+eighty_percent <- trips*.8
+eighty_percent_plus_1 <- eighty_percent+1
+training_data <- shuffled[1:eighty_percent, 1:8]
+validation_data <- shuffled[eighty_percent_plus_1:trips, 1:8]
+```
+
+#predict number of trips
+
+```{r model}
+model <-lm(num_trips ~ tmin, training_data)
+training_data <- add_predictions(training_data, model)
+validation_data <- add_predictions(validation_data, model)
+
+training_data %>%
+ggplot() +
+  geom_point(aes(x = tmin, y = num_trips), color = 'red') +
+  geom_line(aes(x = tmin, y = pred), color = 'blue') +
+  xlab('Predictions') +
+  ylab('Actual')
+```
+```{r r-squared}
+R_train <- cor(training_data$pred, training_data$num_trips )
+R_squared_train <- I(R_train^2)
+
+R_validate <- cor(validation_data$pred, validation_data$num_trips)
+R_squared_validate <- I(R_validate^2)
+
+rmse_train <- sqrt(mean((training_data$pred-training_data$num_trips)^2))
+
+rmse_validate <-sqrt(mean((validation_data$pred-validation_data$num_trips)^2))
+
+training_data %>%
+ggplot() +
+  geom_point(aes(x = tmin, y = num_trips), color = 'red') +
+  geom_line(aes(x = tmin, y = pred), color = 'blue') +
+  geom_point(data = validation_data, aes(x = tmin, y = num_trips ), color = 'cyan') +
+  xlab('Predictions') +
+  ylab('Actual')
+```
+
+
+```{r}
+model2 <- lm(num_trips ~ tmin + I(tmin^2), training_data)
+summary(model2)
+training_data <- add_predictions(training_data, model2, var = "pred2")
+validation_data <- add_predictions(validation_data, model2, var="pred2")
+
+training_data %>%
+ggplot() +
+  geom_point(aes(x = tmin, y = num_trips), color = 'red') +
+  geom_point( data = validation_data, aes(x = tmin, y = num_trips), color = 'cyan') +
+  geom_line(aes(x = tmin, y = pred2))
+```
+
+```{r}
+r_squared_train_model2 <- rsquare(model2, training_data)
+r_squared_validate_model2 <- rsquare(model2, validation_data)
+
+rmse_train_model2 <- rmse(model2, training_data)
+rmse_validate_model2 <- rmse(model2, validation_data)
+```
+
+```{r}
+training_data %>%
+ggplot() +
+  geom_point(aes(x = tmin, y = num_trips), color = 'cyan') +
+  geom_line(aes(x = tmin, y = pred), color = 'red') +
+  geom_line(aes(x = tmin, y = pred2), color = 'blue')
+```
+
+```{r}
+K <- 1:8
+train_error <- c()
+validation_error <- c()
+for(k in K) {
+  model_poly <- lm(num_trips ~ poly(tmin, k, raw = T), training_data)
+  train_error[k] <- rsquare(model_poly, training_data)
+  validation_error[k]<- rsquare(model_poly, validation_data)
+}
+
+ggplot() +
+  geom_line(aes(x = K, y = train_error), color = 'red') +
+  geom_line(aes(x = K, y = validation_error), color = 'cyan') +
+  xlab('Polynomial degree') + 
+  ylab('R square error')
+
+```
+
+```{r}
+model4 <- lm(num_trips ~ poly(tmin, 4, raw = T), training_data)
+training_data <- add_predictions(training_data, model4, var = "pred4")
+
+training_data %>%
+  ggplot() +
+  geom_line(aes(x = tmin, y = pred4 ), color = "blue") +
+  geom_point(aes(x = tmin, y = num_trips), color = 'red') +
+  geom_point(data = validation_data, aes(x = tmin, y = num_trips), color = 'cyan')
+```
+
+```{r}
+shuffled <- sample_frac(trips_per_day, 1, replace = F) %>%
+  mutate(fold = (row_number() %% 5 ) + 1)
+
+view(shuffled)
+
+K <- 1:5
+P <- 1:8
+t_mse <- c()
+v_mse <- c()
+mean_of_valid <- c()
+mean_of_training <- c()
+t_se <- c()
+v_se <- c()
+for (p in P) {
+  for(k in K) {
+      k_training_data <- shuffled %>% filter(fold != k )
+      k_valid_data <- shuffled %>% filter(fold == k)
+      model <- lm(num_trips ~ poly(tmin, p, raw = T), k_training_data)
+      t_mse[k] <- rmse(model, k_training_data)
+      v_mse[k] <- rmse(model, k_valid_data)
+  }
+ mean_of_valid[p] <- mean(v_mse)
+ mean_of_training[p] <- mean(t_mse)
+ t_se[p] <- sd(t_mse)/sqrt(292)
+ v_se[p] <- sd(v_mse)/sqrt(73)
+}
+
+
+ggplot() +
+  geom_line(aes(x = P, y = mean_of_training), color = 'red') +
+  geom_line(aes(x = P, y = mean_of_valid), color = 'cyan')
+  
+```
+

@@ -1,0 +1,64 @@
+---
+  
+  
+---
+```{r}
+
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+
+```
+
+```{r}
+trips_per_day <- read_tsv('trips_per_day.tsv')
+holidays <- read_csv('https://gist.githubusercontent.com/shivaas/4758439/raw/b0d3ddec380af69930d0d67a9e0519c047047ff8/US%2520Bank%2520holidays', col_names=c('n', 'date', 'holiday'))
+
+joined <- left_join(trips_per_day, holidays, by = c("ymd" = "date"))
+
+joined <- joined %>% mutate(isholiday = (!(is.na(holiday))), wday = wday(ymd)) %>%
+mutate(isweekend = (wday == 1) | (wday == 7) ) %>% dplyr::select(date, num_trips, prcp, snwd, snow, tmax, tmin, isholiday, wday, isweekend) 
+
+trips <- joined %>% nrow()
+shuffled <- sample_frac(joined, 1, replace = F)
+
+eighty_percent <- trips*.8
+eighty_percent_plus_1 <- eighty_percent+1
+training_data <- shuffled[1:eighty_percent, 1:10]
+validation_data <- shuffled[eighty_percent_plus_1:trips, 1:10]
+```
+
+```{r model}
+joined %>%
+ggplot() +
+  geom_point(aes(x= tmax, y = num_trips))
+
+
+model <- lm(num_trips ~ . -date -tmin -snow, joined)
+training_data <- add_predictions(training_data, model, var = "pred")
+
+validation_data <- add_predictions(validation_data, model, var = "pred")
+
+training_data %>%
+ggplot() +
+  geom_point( data = validation_data, aes(x = pred, y = num_trips), color = "cyan") +
+  geom_point(data = training_data, aes(x = pred, y = num_trips), color = "red") +
+  geom_abline(slope = 1, intercept = 0, linetype = 'dashed')
+
+  
+summary(model)
+
+model2 <- lm(num_trips ~ isholiday + tmin + isweekend + prcp + snwd + tmax, joined)
+summary(model2)
+validation_data <- add_predictions(validation_data, model2, var = "pred_model2")
+
+ggplot() +
+  geom_point(data = validation_data, aes(x = tmin, y = num_trips)) +
+  geom_line(data = validation_data, aes(x = tmin, y = pred), color = 'blue') +
+  geom_line(data = validation_data, aes(x = tmin, y = pred_model2), color = 'green')
+
+```
+```{r}
+
+```
+
