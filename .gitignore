@@ -18,4 +18,4 @@ week2/ngrams/ngram.png
 *.gz
 *.csv
 *.tsv
-
+*.RData
